@@ -7,10 +7,14 @@ class NegociacaoController {
         this._inputValor = $('#valor');
         
         this._listaNegociacoes = new Bind(
-            new ListaNegociacoes(), new NegociacoesView($('#negociacoesView')), 'adiciona','esvazia');
+            new ListaNegociacoes(), 
+            new NegociacoesView($('#negociacoesView')), 
+            'adiciona','esvazia','ordena','inverteOrdem');
        
         this._mensagem = new Bind(
             new Mensagem(), new MensagemView($('#mensagemView')), 'texto');
+
+        this._ordemAtual = '';
     }
 
     adiciona(event){
@@ -23,6 +27,15 @@ class NegociacaoController {
     apaga(){
         this._listaNegociacoes.esvazia();
         this._mensagem.texto = 'Negociação apagadas com sucesso!';
+    }
+
+    ordena(coluna) {
+        if(this._ordemAtual == coluna) {
+            this._listaNegociacoes.inverteOrdem();
+        } else {
+            this._listaNegociacoes.ordena((a, b) => a[coluna] - b[coluna]);
+        }
+        this._ordemAtual = coluna;    
     }
 
     _criaNegociacao() {
@@ -42,14 +55,18 @@ class NegociacaoController {
 
     importaNegociacoes(){
         let service = new NegociacaoService();
-        service.obterNegociacoesDaSemana((erro, negociacoes) => {
-            if(erro){
-                this._mensagem.texto = erro;
-                return;
-            }
-            negociacoes.forEach(negociacao => this._listaNegociacoes.adiciona(negociacao));
-            this._mensagem.texto = 'Negociacoes importadas com sucesso!';
-        });
+        
+        Promise.all([
+            service.obterNegociacoesDaSemana(),
+            service.obterNegociacoesDaSemanaAnterior(),
+            service.obterNegociacoesDaSemanaRetrasada()
+        ]).then(negociacoes => {
+            negociacoes
+                .reduce((arrayAchatado, array) => arrayAchatado.concat(array, []))
+                .forEach(negociacao => this._listaNegociacoes.adiciona(negociacao));
+            this._mensagem.texto = 'Negociações importadas com sucesso!';
+        })
+        .catch(error => console.log(error));
     }
 
 }
